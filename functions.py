@@ -21,7 +21,7 @@ def clean_data_points():
     pois = pd.read_csv('data\POIs\POI_4815075.csv')
     # TO DO: Add more cleaning steps
     return pois
-def clean_data_Lines(print_line_map: bool = False, print_point_map: bool = False, map_number: int = 0):
+def clean_data_lines(print_line_map: bool = False, print_point_map: bool = False, map_number: int = 0):
     """
     Cleans the input DataFrame by removing appropriate columns and renaming them.
     merges two DataFrames based on 'link_id' and sorts the result by 'ST_NAME'.
