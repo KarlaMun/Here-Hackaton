@@ -13,29 +13,31 @@ def clean_data_points():
     Specifically designed for the POI dataset.
     
     Parameters:
-    None - Data is loaded from file POI_.
+        None - Data is loaded from file POI_.
     
     Returns:
-    pd.DataFrame: The cleaned DataFrame.
+        pd.DataFrame: The cleaned DataFrame.
     """
     pois = pd.read_csv('data\POIs\POI_4815075.csv')
     # TO DO: Add more cleaning steps
     return pois
-def clean_data_Lines():
+def clean_data_Lines(print_line_map: bool = False, print_point_map: bool = False, map_number: int = 0):
     """
     Cleans the input DataFrame by removing appropriate columns and renaming them.
     merges two DataFrames based on 'link_id' and sorts the result by 'ST_NAME'.
     Specifically designed for the POI dataset.
     
     Parameters:
-    None - Data is loaded from files StREETS_NAMING_ADDRESSING and STREETS_NAV.
-    
+        print_line_map (list): If True, prints the line map for each street name.
+        - Default is None.
+        print_point_map (list): If True, prints the point map for each street name.
+        - Default is None.
     Returns:
-    combined_map (pd.DataFrame): The cleaned and combined DataFrame.
-    point_map (GeoDataFrame): The cleaned DataFrame with point geometries obtained by top 300
-    largest frecuencies of 'ST_NAME'.
-    line_map (GeoDataFrame): The cleaned DataFrame with line geometries obtained by top 300
-    largest frecuencies of 'ST_NAME'.
+        combined_map (pd.DataFrame): The cleaned and combined DataFrame.
+        point_map (GeoDataFrame): The cleaned DataFrame with point geometries obtained by top 300
+        largest frecuencies of 'ST_NAME'.
+        line_map (GeoDataFrame): The cleaned DataFrame with line geometries obtained by top 300
+        largest frecuencies of 'ST_NAME'.
     """
     # Load datasets
     names = gpd.read_file('data\STREETS_NAMING_ADDRESSING\SREETS_NAMING_ADDRESSING_4815075.geojson')
@@ -54,11 +56,19 @@ def clean_data_Lines():
     point_map = gpd.GeoDataFrame()
     line_map = gpd.GeoDataFrame()
     # Point map
+    idx = 0
     for i in relevant_streets['ST_NAME']:
         example = names.loc[names["ST_NAME"] == i]
         lst = [point_map, example.geometry.boundary.extract_unique_points()]
         point_map = gpd.GeoDataFrame( pd.concat( lst, ignore_index=True) )
         line_map = gpd.GeoDataFrame( pd.concat( [line_map, example.geometry], ignore_index=True) )
+        if print_point_map and idx < map_number:
+            example.boundary.plot()
+            plt.title(f"Point Map for {i}")
+        if print_line_map and idx < map_number:
+            example.plot(column = 'link_id')
+            plt.title(f"Line Map for {i}")
+        idx += 1
     point_map = point_map.rename(columns={point_map.columns[0]: 'geometry'})
     point_map.set_geometry('geometry', inplace=True)
     line_map = line_map.rename(columns={line_map.columns[0]: 'geometry'})
@@ -106,7 +116,5 @@ def st_nodes_dbscan(point_map, st_name,  eps:float = 0.5, min_samples:int = 1):
     plt.title(f"DBSCAN Clustering for {st_name}")
     plt.xlabel('Longitude')
     plt.ylabel('Latitude')
-    #plt.figlegend('Cluster Label')
     plt.show()
     return data['cluster'].tolist()
-    
