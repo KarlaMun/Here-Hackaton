@@ -6,6 +6,7 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 from shapely import plotting
+from sklearn.cluster import DBSCAN
 
 def clean_data_points():
     """
@@ -75,8 +76,7 @@ def clean_data_lines(print_line_map: bool = False, print_point_map: bool = False
     line_map.set_geometry('geometry', inplace=True)
     return combined_map, point_map, line_map
 # Create individual dataset from streets with the same name dataset
-
-def st_nodes_dbscan(point_map, st_name,  eps:float = 0.5, min_samples:int = 1):
+def st_nodes_dbscan(point_map, st_name,  eps:float = 0.5, min_samples:int = 1, show:bool = False):
     """
     Returns the labels for each point provided in the geometry column of the point_map GeoDataFrame.
     The labels are generated using the DBSCAN clustering algorithm.
@@ -89,6 +89,8 @@ def st_nodes_dbscan(point_map, st_name,  eps:float = 0.5, min_samples:int = 1):
         min_samples: int
             The number of samples in a neighborhood for a point to be considered as a core point.
             Default is 5.
+        show: bool
+            If True, the function will display a scatter plot of the clustered points.
     output:
         list of labels: list
             A list of labels for each point in the geometry column of the point_map GeoDataFrame.
@@ -111,10 +113,59 @@ def st_nodes_dbscan(point_map, st_name,  eps:float = 0.5, min_samples:int = 1):
     dbscan = DBSCAN(eps=eps, min_samples=min_samples).fit(data)
     data['cluster'] = dbscan.labels_
     data['cluster'] = data['cluster'].astype('category')
-    plt.figure(figsize=(10, 10))
-    plt.scatter(data['x'], data['y'], c=data['cluster'], s=40)
-    plt.title(f"DBSCAN Clustering for {st_name}")
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.show()
+    if(show == True):
+        plt.figure(figsize=(10, 10))
+        plt.scatter(data['x'], data['y'], c=data['cluster'], s=40)
+        plt.title(f"DBSCAN Clustering for {st_name}")
+        plt.xlabel('Longitude')
+        plt.ylabel('Latitude')
+        plt.show()
     return data['cluster'].tolist()
+def get_street_geometries():
+    """
+    Returns the geometries of the streets in the combined_map DataFrame.
+    The geometries are obtained by merging the line_map and point_map DataFrames.
+    
+    Parameters:
+        None - Data is loaded from file POI_.
+    
+    Returns:
+        list: A list of geometries for each street in the combined_map DataFrame.
+    """
+    # Load datasets
+    names = gpd.read_file('data\STREETS_NAMING_ADDRESSING\SREETS_NAMING_ADDRESSING_4815075.geojson')
+    nav = gpd.read_file('data\STREETS_NAV\SREETS_NAV_4815075.geojson')
+
+    data_1 = gpd.GeoDataFrame()
+    data_2 = gpd.GeoDataFrame()
+    data_1['link_id'] = nav['link_id']
+    data_1['DIR_TRAVEL'] = nav['DIR_TRAVEL']
+    data_2['ST_NAME'] = names['ST_NAME']
+    data_2['geometry'] = names['geometry']
+    data_2['link_id'] = names['link_id']
+
+    #Preparing variables of interest
+    data = pd.merge(data_1, data_2, how='inner', on='link_id')
+    data = gpd.GeoDataFrame(data, geometry='geometry')
+    #data.set_geometry('geometry', inplace=True)
+
+    # gather streets with common names
+    map_data = pd.DataFrame(data['ST_NAME'].value_counts())
+    map_data['ST_NAME'] = map_data.index
+    relevant_streets = map_data[:300][:]
+
+    # Construct roads databases
+    point_map = gpd.GeoDataFrame()
+    roads = []
+    for i in relevant_streets['ST_NAME']:
+        example = data.loc[data["ST_NAME"] == i]
+        example['geometry'] = example.geometry.boundary.extract_unique_points()
+        point_map = example.explode(column='geometry')
+        # Clustering
+        labels = st_nodes_dbscan(point_map, i)
+        point_map['cluster'] = labels
+        n =  len(np.unique(np.array(labels)))
+        for j in range(n):
+            data_temp = point_map.loc[point_map['cluster'] == j]
+            roads.append(data_temp)
+    return roads
